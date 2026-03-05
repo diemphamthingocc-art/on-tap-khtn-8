@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { 
-  AlertTriangle, 
   CheckCircle2, 
   XCircle, 
   Brain, 
   Dna, 
-  Thermometer, 
   ShieldCheck, 
   ArrowRight, 
   RotateCcw,
@@ -20,8 +18,6 @@ type Screen = 'start' | 'quiz' | 'result';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('start');
-  const [violationCount, setViolationCount] = useState(0);
-  const [showCheatModal, setShowCheatModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
 
@@ -39,37 +35,9 @@ export default function App() {
     feedback: string;
   } | null>(null);
 
-  const triggerViolation = useCallback(() => {
-    if (screen !== 'quiz' || isReviewing) return;
-    setViolationCount(prev => {
-      const next = prev + 1;
-      if (next >= 3) {
-        handleSubmit(true);
-      } else {
-        setShowCheatModal(true);
-      }
-      return next;
-    });
-  }, [screen, isReviewing]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') triggerViolation();
-    };
-    const handleBlur = () => triggerViolation();
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [triggerViolation]);
-
-  const handleSubmit = async (auto = false) => {
+  const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    setShowCheatModal(false);
 
     let s1 = 0;
     mcqQuestions.forEach((q, i) => {
@@ -85,11 +53,10 @@ export default function App() {
     });
 
     try {
-      const aiPayload = shortQuestions.map((q, i) => ({ q: q.q, a: userShort[i] }));
+      const aiPayload = shortQuestions.map((q, i) => ({ q: q.q, a: userShort[i], ref: q.ref }));
       const aiResult = await gradeShortAnswers(process.env.GEMINI_API_KEY || '', aiPayload);
       
       let total = s1 + s2 + aiResult.score;
-      if (auto && violationCount >= 3) total *= 0.5;
 
       setResults({
         total: Number(total.toFixed(1)),
@@ -115,7 +82,6 @@ export default function App() {
 
   const resetQuiz = () => {
     setScreen('start');
-    setViolationCount(0);
     setUserMCQ(new Array(mcqQuestions.length).fill(null));
     setUserTF(tfQuestions.map(q => new Array(q.i.length).fill(null)));
     setUserShort(new Array(shortQuestions.length).fill(''));
@@ -125,41 +91,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900 pb-20">
-      {/* Cheat Modal */}
-      <AnimatePresence>
-        {showCheatModal && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-[2.5rem] max-w-sm w-full p-8 text-center border-t-8 border-red-500 shadow-2xl"
-            >
-              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <AlertTriangle className="w-10 h-10 text-red-500" />
-              </div>
-              <h3 className="text-xl font-extrabold text-slate-900 mb-2 uppercase">Cảnh báo vi phạm!</h3>
-              <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-                Bạn không được phép rời khỏi trang thi. Vi phạm quá 3 lần bài làm sẽ tự động nộp.
-              </p>
-              <div className="inline-flex items-center px-4 py-2 bg-slate-100 rounded-full text-xs font-bold text-slate-600 mb-6">
-                Lần vi phạm: <span className="text-red-600 ml-2 text-lg">{violationCount}</span>/3
-              </div>
-              <button 
-                onClick={() => setShowCheatModal(false)}
-                className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-black transition shadow-lg"
-              >
-                TÔI ĐÃ HIỂU
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <div className="max-w-2xl mx-auto px-4 py-10">
         {screen === 'start' && (
           <motion.div 
@@ -416,10 +347,6 @@ export default function App() {
               <div className="flex justify-between items-center">
                 <span className="text-slate-500 text-sm flex items-center gap-2"><Brain className="w-4 h-4" /> Tự luận vận dụng</span>
                 <span className="font-black text-slate-800">{results.s3}/2.0</span>
-              </div>
-              <div className="pt-4 border-t mt-2 flex justify-between items-center">
-                <span className="text-red-500 text-sm flex items-center gap-2 font-bold"><AlertTriangle className="w-4 h-4" /> Vi phạm chuyển Tab</span>
-                <span className="font-black text-red-600">{violationCount} lần</span>
               </div>
             </div>
 
